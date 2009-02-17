@@ -962,7 +962,9 @@ void HChord_U::handleStabilizeSuperPeerTimerExpired(cMessage *msg)
 
 void HChord_U::handleUpperJoinTimerExpired(cMessage *msg)
 {
-	
+
+	if(in_upper)
+		return;	
 	
 	UHJoinCall *ujoincall = new UHJoinCall("UHJoinCall");
 	ujoincall->setSrc(thisNode);
