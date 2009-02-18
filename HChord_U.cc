@@ -19,7 +19,7 @@ Define_Module(HChord_U);
 
 HChord_U::HChord_U()
 {
-    stabilize_timer  = stabilize_timer =  NULL;
+    stabilize_timer  = stabilize_super_peer_timer = upper_join_timer = migrate_timer =  NULL;
 }
 
 
@@ -58,11 +58,11 @@ void HChord_U::initializeOverlay(int stage)
    std::string node_ip = str.str(); 
    EV<<"Node ip is "<<node_ip<<endl;
     
-  //  if(node_ip=="1.0.0.1"||node_ip=="1.0.0.8" ||node_ip=="1.0.0.14" ||node_ip=="1.0.0.15" ||node_ip=="1.0.0.22")
-	//    strong_peer=1;
-
-  if(node_ip=="1.0.0.1"||node_ip=="1.0.0.3"||node_ip=="1.0.0.27")
+    if(node_ip=="1.0.0.1"||node_ip=="1.0.0.8" ||node_ip=="1.0.0.14" ||node_ip=="1.0.0.15" ||node_ip=="1.0.0.22")
 	    strong_peer=1;
+
+//  if(node_ip=="1.0.0.1"||node_ip=="1.0.0.3"||node_ip=="1.0.0.27")
+//	    strong_peer=1;
 
 	    
 
@@ -106,9 +106,12 @@ void HChord_U::initializeOverlay(int stage)
     stabilize_timer= new cMessage("stabilize_timer");
     fixfingers_timer = new cMessage("fixfingers_timer");
     stabilize_super_peer_timer = new cMessage("stabilize_super_peer_timer");
+
     if(strong_peer)
     {
     	migrate_timer = new cMessage("migrate_timer");
+    	upper_join_timer = new cMessage("upper_join_timer");
+    	
 	}
 	
     
@@ -125,6 +128,8 @@ HChord_U::~HChord_U()
     cancelAndDelete(stabilize_super_peer_timer);
     if(strong_peer)
     	cancelAndDelete(migrate_timer);
+    if(in_upper)
+    	cancelAndDelete(upper_join_timer);
   
 }
 
@@ -978,6 +983,7 @@ void HChord_U::handleUpperJoinTimerExpired(cMessage *msg)
 	req->setDest(lower->SuperPeerNode);
 	req->setMesg_type(LARGEST_NODE_REQUEST);
 	sendMessageToUDP(lower->SuperPeerNode,req);*/
+    
     cancelEvent(join_timer);
     scheduleAt(simulation.simTime() + joinDelay, msg);
 
@@ -1156,6 +1162,10 @@ void HChord_U::processJoinRequest(UHJoinCall *joinCall)
 		
         updateTooltip();
     }
+    
+    //remove this node from strong peer list
+    StrongPeerSet.erase(joinCall->getSrc().key);
+    
     
     delete joinCall;
 }
@@ -1468,7 +1478,8 @@ void HChord_U::handleStabilizeSuperPeerCall (HStabilizeSuperPeerCall *spstab)
 }
 
 void HChord_U::handleStabilizeSuperPeerResponse (HStabilizeSuperPeerResponse *res)
-{//big changes
+{
+	//big changes
 	if(super_peer)
 	{
 		delete res;
@@ -1487,10 +1498,18 @@ void HChord_U::handleStabilizeSuperPeerResponse (HStabilizeSuperPeerResponse *re
 		EV<<"Strong peer 1 "<<sp1<<"   Strong peer 2 "<<sp2<<endl;
 		if(thisNode.key.isBetweenR(sp1.key,sp2.key))
 		{
+			if(sp2==thisNode)//our sp has us added as sp and we dont know about it
+			{
+				return;
+			}
 			lower->SuperPeerNode=sp2;
 		}
 		else if(thisNode.key.isBetweenR(sp2.key,sp1.key))
 		{
+			if(sp1==thisNode)//our sp has us added as sp and we dont know about it
+			{
+				return;
+			}
 			lower->SuperPeerNode=sp1;
 		}
 		updateTooltip();
@@ -1525,7 +1544,6 @@ void HChord_U::handleMigrateResponse(HMigrateResponse *migres)
 	//add self to strong peer set
 	StrongPeerSet.insert(make_pair(thisNode.key,thisNode));
 	
-	cMessage *upper_join_timer= new cMessage("upper_join_timer");
 	scheduleAt(simulation.simTime()+2*fixfingersDelay,upper_join_timer);
 	
 	delete migres;

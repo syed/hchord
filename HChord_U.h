@@ -64,7 +64,7 @@ protected:
     cMessage* fixfingers_timer; /**< */
     cMessage* migrate_timer;
     cMessage* stabilize_super_peer_timer;
-    //cMessage* upper_join_timer;
+    cMessage* upper_join_timer;
     
     
 
